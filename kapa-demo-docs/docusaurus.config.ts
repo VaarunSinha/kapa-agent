@@ -5,8 +5,8 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
+  title: 'Kapa Content Gap Action Agent',
+  tagline: 'AI-powered documentation assistant for GitHub-driven doc gaps',
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -75,9 +75,9 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'My Site',
+      title: 'Kapa Content Gap Action Agent',
       logo: {
-        alt: 'My Site Logo',
+        alt: 'Kapa Logo',
         src: 'img/logo.svg',
       },
       items: [
@@ -85,7 +85,7 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'tutorialSidebar',
           position: 'left',
-          label: 'Tutorial',
+          label: 'Docs',
         },
         {to: '/blog', label: 'Blog', position: 'left'},
         {
@@ -102,8 +102,12 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/docs/intro',
+              label: 'Introduction',
+              to: '/docs/introduction',
+            },
+            {
+              label: 'Getting Started',
+              to: '/docs/getting-started',
             },
           ],
         },

@@ -138,7 +138,12 @@ REST_FRAMEWORK = {
 }
 
 # Django CORS Headers
-CORS_ALLOW_ALL_ORIGINS = True  # For development; restrict in production with CORS_ALLOWED_ORIGINS
+CORS_ALLOW_ALL_ORIGINS = (
+    True  # For development; restrict in production with CORS_ALLOWED_ORIGINS
+)
+
+# Coverage Gaps / GitHub app (for frontend dashboard)
+GITHUB_INSTALL_URL = "https://github.com/apps/content-gap-action-agent"
 
 # Celery + Redis
 CELERY_BROKER_URL = "redis://localhost:6379/0"
