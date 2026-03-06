@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const IconDashboard = () => (
@@ -24,6 +25,21 @@ const IconUsers = () => (
 const IconGaps = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v3M11 14h.01"/>
+  </svg>
+);
+const IconIssues = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+);
+const IconResearch = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/>
+  </svg>
+);
+const IconFixes = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
   </svg>
 );
 const IconAnalytics = () => (
@@ -103,6 +119,14 @@ const navGroups = [
       { id: "users", label: "Users", icon: IconUsers },
       { id: "coverage-gaps", label: "Coverage Gaps", icon: IconGaps, badge: "NEW", active: true },
       { id: "source-analytics", label: "Source Analytics", icon: IconAnalytics },
+    ],
+  },
+  {
+    label: "WORKFLOW",
+    items: [
+      { id: "issues", label: "Issues", icon: IconIssues, href: "/issues" },
+      { id: "research", label: "Research", icon: IconResearch, href: "/research" },
+      { id: "fixes", label: "Fixes", icon: IconFixes, href: "/fixes" },
     ],
   },
   {
@@ -191,19 +215,19 @@ function Sidebar() {
             )}
             {group.items.map((item) => {
               const Icon = item.icon;
-              return (
-                <div
-                  key={item.id}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "7px 18px",
-                    cursor: "pointer", borderRadius: 0,
-                    background: item.active ? "rgba(168,85,247,0.12)" : "transparent",
-                    borderLeft: item.active ? "2px solid #a855f7" : "2px solid transparent",
-                    color: item.active ? "#c084fc" : "#6b6b6b",
-                    transition: "all 0.15s",
-                  }}
-                >
+              const isLink = !!item.href;
+              const style = {
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "7px 18px",
+                cursor: "pointer", borderRadius: 0,
+                background: item.active ? "rgba(168,85,247,0.12)" : "transparent",
+                borderLeft: item.active ? "2px solid #a855f7" : "2px solid transparent",
+                color: item.active ? "#c084fc" : "#6b6b6b",
+                transition: "all 0.15s",
+                textDecoration: "none",
+              };
+              const content = (
+                <>
                   <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                     <Icon />
                     <span style={{ fontSize: 13 }}>{item.label}</span>
@@ -216,6 +240,22 @@ function Sidebar() {
                       borderRadius: 4, padding: "2px 5px",
                     }}>{item.badge}</span>
                   )}
+                </>
+              );
+              if (isLink) {
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    style={style}
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+              return (
+                <div key={item.id} style={style}>
+                  {content}
                 </div>
               );
             })}
@@ -271,14 +311,18 @@ function StatusBadge({ status }) {
 
 // ─── CoverageGapCard ──────────────────────────────────────────────────────────
 function CoverageGapCard({ gap, githubInstallUrl, onAct }) {
+  const router = useRouter();
   const [acting, setActing] = useState(false);
   const [localStatus, setLocalStatus] = useState(gap.status);
 
   const handleAct = async () => {
     setActing(true);
     try {
-      await onAct(gap.id);
+      const data = await onAct(gap.id);
       setLocalStatus("acted");
+      if (data?.issue_id) {
+        setTimeout(() => router.push(`/issues/${data.issue_id}`), 600);
+      }
     } catch (e) {
       console.error(e);
     } finally {

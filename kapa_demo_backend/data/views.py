@@ -29,21 +29,3 @@ class CoverageGapListAPIView(APIView):
                 "gaps": serializer.data,
             }
         )
-
-
-class CoverageGapActAPIView(APIView):
-    """POST /api/coverage-gaps/<id>/act — mark a coverage gap as acted."""
-
-    def post(self, request, id):
-        try:
-            gap = CoverageGap.objects.get(pk=id)
-        except CoverageGap.DoesNotExist:
-            return Response(
-                {"status": "error", "detail": "Coverage gap not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        gap.status = "acted"
-        gap.save()
-
-        return Response({"status": "ok", "issueCreated": True})

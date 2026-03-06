@@ -11,7 +11,9 @@
   "dependencies": {
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "survey-core": "^2.5.14",
+    "survey-react-ui": "^2.5.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
