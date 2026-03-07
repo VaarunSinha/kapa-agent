@@ -310,7 +310,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── CoverageGapCard ──────────────────────────────────────────────────────────
-function CoverageGapCard({ gap, githubInstallUrl, onAct }) {
+function CoverageGapCard({ gap, onAct }) {
   const router = useRouter();
   const [acting, setActing] = useState(false);
   const [localStatus, setLocalStatus] = useState(gap.status);
@@ -406,29 +406,6 @@ function CoverageGapCard({ gap, githubInstallUrl, onAct }) {
         display: "flex", alignItems: "center", gap: 10,
         background: "rgba(255,255,255,0.015)",
       }}>
-        {/* Connect Source Code */}
-        <a
-          href={githubInstallUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "7px 14px", borderRadius: 7,
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            color: "#c0c0c0", textDecoration: "none",
-            fontSize: 12, fontWeight: 500, cursor: "pointer",
-            fontFamily: "'DM Mono', monospace",
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "#fff"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#c0c0c0"; }}
-        >
-          <IconGithub />
-          Connect Source Code
-          <IconChevronRight />
-        </a>
-
         {/* Act */}
         <button
           onClick={handleAct}
@@ -567,10 +544,52 @@ export default function CoverageGapsPage() {
         <div style={{
           borderBottom: "1px solid rgba(255,255,255,0.06)",
           padding: "14px 32px",
-          display: "flex", alignItems: "center", justifyContent: "flex-end",
+          display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10,
           background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)",
           position: "sticky", top: 0, zIndex: 10,
         }}>
+          {data?.hasConnectedRepo && data?.connectedRepo && (
+            <Link
+              href={`/github/setup?installation_id=${data.connectedRepo.installation_id}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 14px", borderRadius: 8,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "#c0c0c0", textDecoration: "none",
+                fontSize: 13, fontWeight: 500, fontFamily: "'DM Mono', monospace",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#c0c0c0"; }}
+            >
+              <IconGithub />
+              Connected: {data.connectedRepo.owner}/{data.connectedRepo.repository_name}
+              <IconChevronRight />
+            </Link>
+          )}
+          {data?.githubInstallUrl && !data?.hasConnectedRepo && (
+            <a
+              href={data.githubInstallUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 14px", borderRadius: 8,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "#c0c0c0", textDecoration: "none",
+                fontSize: 13, fontWeight: 500, fontFamily: "'DM Mono', monospace",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#c0c0c0"; }}
+            >
+              <IconGithub />
+              Connect Source Code
+              <IconChevronRight />
+            </a>
+          )}
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 7,
             padding: "7px 16px", borderRadius: 8,
@@ -650,7 +669,6 @@ export default function CoverageGapsPage() {
                     >
                       <CoverageGapCard
                         gap={gap}
-                        githubInstallUrl={data.githubInstallUrl}
                         onAct={handleAct}
                       />
                     </div>

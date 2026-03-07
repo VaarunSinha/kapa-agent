@@ -29,6 +29,16 @@ urlpatterns = [
     ),
     path("fixes", views.FixListAPIView.as_view(), name="fix-list"),
     path(
+        "fixes/<uuid:id>/approve",
+        views.FixApproveAPIView.as_view(),
+        name="fix-approve",
+    ),
+    path(
+        "fixes/<uuid:id>/chat",
+        views.FixChatAPIView.as_view(),
+        name="fix-chat",
+    ),
+    path(
         "fixes/<uuid:id>",
         views.FixDetailAPIView.as_view(),
         name="fix-detail",

@@ -28,7 +28,16 @@ export const STATUS_MAP: Record<string, { label: string; color: string; bg: stri
   acted:       { label: "Acted",       color: "#c084fc", bg: "rgba(168,85,247,0.12)",  border: "rgba(168,85,247,0.3)"  },
   pending:     { label: "Pending",     color: "#94a3b8", bg: "rgba(148,163,184,0.12)", border: "rgba(148,163,184,0.3)" },
   complete:    { label: "Complete",    color: "#4ade80", bg: "rgba(34,197,94,0.12)",   border: "rgba(34,197,94,0.3)"   },
+  completed:   { label: "Completed",   color: "#4ade80", bg: "rgba(34,197,94,0.12)",   border: "rgba(34,197,94,0.3)"   },
   draft:       { label: "Draft",       color: "#fb923c", bg: "rgba(251,146,60,0.12)",  border: "rgba(251,146,60,0.3)"  },
+  created:     { label: "Created",     color: "#94a3b8", bg: "rgba(148,163,184,0.12)", border: "rgba(148,163,184,0.3)" },
+  researching: { label: "Researching", color: "#60a5fa", bg: "rgba(59,130,246,0.12)",  border: "rgba(59,130,246,0.3)"  },
+  questions_pending:   { label: "Questions Pending",   color: "#fbbf24", bg: "rgba(234,179,8,0.12)",   border: "rgba(234,179,8,0.3)"   },
+  research_complete:   { label: "Research Complete",   color: "#22d3ee", bg: "rgba(34,211,238,0.12)", border: "rgba(34,211,238,0.3)" },
+  fix_proposed: { label: "Fix Proposed", color: "#a855f7", bg: "rgba(168,85,247,0.12)",  border: "rgba(168,85,247,0.3)"  },
+  approved:    { label: "Approved",    color: "#4ade80", bg: "rgba(34,197,94,0.12)",   border: "rgba(34,197,94,0.3)"   },
+  published:   { label: "Published",   color: "#4ade80", bg: "rgba(34,197,94,0.12)",   border: "rgba(34,197,94,0.3)"   },
+  review:      { label: "Review",      color: "#fb923c", bg: "rgba(251,146,60,0.12)",  border: "rgba(251,146,60,0.3)"  },
 };
 
 export function StatusBadge({ status }: { status: string }) {

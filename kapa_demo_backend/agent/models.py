@@ -7,7 +7,8 @@ class Issue(models.Model):
         ("created", "Created"),
         ("researching", "Researching"),
         ("questions_pending", "Questions Pending"),
-        ("fix_ready", "Fix Ready"),
+        ("research_complete", "Research Complete"),
+        ("fix_proposed", "Fix Proposed"),
         ("completed", "Completed"),
     ]
 
@@ -96,10 +97,13 @@ class Fix(models.Model):
         on_delete=models.CASCADE,
         related_name="fixes",
     )
-    file_path = models.CharField(max_length=1024)
-    patch = models.TextField()
+    file_path = models.CharField(max_length=1024, blank=True)
+    patch = models.TextField(blank=True)
+    files = models.JSONField(default=list, blank=True)  # [{"path": str, "content": str}, ...]
     summary = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    branch_name = models.CharField(max_length=255, blank=True, null=True)
+    pr_url = models.URLField(max_length=512, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

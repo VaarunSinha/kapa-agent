@@ -5,26 +5,26 @@ Used by load_sample_data management command and by CoverageGapActAPIView after A
 from .models import Issue, Research, Question, Fix
 
 
-def create_sample_fix_for_issue(issue, file_path="docs/getting-started.md", summary="Add installation steps"):
+def create_sample_fix_for_issue(issue, summary="Add installation steps"):
+    content = """# Getting Started
+
+## Installation
+
+1. Install the CLI:
+   ```bash
+   npm install -g @kapa/cli
+   ```
+2. Log in:
+   ```bash
+   kapa login
+   ```
+"""
     return Fix.objects.create(
         issue=issue,
-        file_path=file_path,
-        patch="""--- a/docs/getting-started.md
-+++ b/docs/getting-started.md
-@@ -1,3 +1,15 @@
- # Getting Started
-+
-+## Installation
-+
-+1. Install the CLI:
-+   ```bash
-+   npm install -g @kapa/cli
-+   ```
-+2. Log in:
-+   ```bash
-+   kapa login
-+   ```
-""",
+        files=[
+            {"path": "docs/getting-started.md", "content": content},
+            {"path": "docs/README.md", "content": "# Documentation\n\nThis documentation covers setup and usage.\n"},
+        ],
         summary=summary,
         status="draft",
     )
@@ -76,5 +76,5 @@ def create_demo_data_for_issue(issue):
     """Create sample research, questions, and fix for an issue (used after Act or in seed)."""
     create_sample_research_for_issue(issue)
     create_sample_fix_for_issue(issue)
-    issue.status = "fix_ready"
+    issue.status = "fix_proposed"
     issue.save(update_fields=["status"])

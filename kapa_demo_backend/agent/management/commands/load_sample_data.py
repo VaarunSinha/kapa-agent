@@ -1,10 +1,11 @@
 """
-Load sample data for testing the docs workflow: coverage gaps, and one pre-acted
-gap with issue, research, questions, and fix.
+Load mock/test data: coverage gaps + one acted gap with issue, research, questions, fix.
+No workflow or API calls—just seeds the DB so you can test the UI.
 
-Usage:
+After resetting DB:
+  rm db.sqlite3
+  python manage.py migrate
   python manage.py load_sample_data
-  python manage.py load_sample_data --clear   # delete existing sample data first
 """
 from django.core.management.base import BaseCommand
 from data.models import CoverageGap
@@ -13,13 +14,13 @@ from agent.demo_data import create_demo_data_for_issue
 
 
 class Command(BaseCommand):
-    help = "Load sample coverage gaps and one pre-acted gap with issue, research, questions, fix."
+    help = "Load mock data: coverage gaps and one acted gap with issue, research, questions, fix."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--clear",
             action="store_true",
-            help="Delete existing agent + coverage gap data before loading (resets demo).",
+            help="Delete existing agent + coverage gap data before loading.",
         )
 
     def handle(self, *args, **options):
@@ -32,7 +33,7 @@ class Command(BaseCommand):
             CoverageGap.objects.all().delete()
             self.stdout.write(self.style.SUCCESS("Cleared."))
 
-        # Create open coverage gaps (user can click Act on these)
+        # Open coverage gaps (user can click Act on these)
         open_gaps = [
             {
                 "title": "Installation steps not documented",
@@ -62,7 +63,7 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f"  Created coverage gap: {gap.title}")
 
-        # One acted gap with full issue + research + questions + fix (so list has data)
+        # One acted gap with full mock: issue + research + questions + fix (multi-file)
         acted_gap_data = {
             "title": "Webhook payload schema missing",
             "conversation_count": 5,
@@ -82,19 +83,18 @@ class Command(BaseCommand):
         if gap_created:
             self.stdout.write(f"  Created acted gap: {acted_gap.title}")
 
-        # Create issue + research + questions + fix for the acted gap (if no issue exists yet)
         existing_issue = Issue.objects.filter(coverage_gap=acted_gap).first()
         if not existing_issue:
             issue = Issue.objects.create(
                 coverage_gap=acted_gap,
                 title=acted_gap.title,
                 description=acted_gap.finding or "",
-                status="created",
+                status="fix_proposed",
             )
             self.stdout.write(f"  Created issue: {issue.title}")
             create_demo_data_for_issue(issue)
-            self.stdout.write("  Added research, questions, and fix for that issue.")
+            self.stdout.write("  Added research, questions, and fix (multi-file mock).")
         else:
             self.stdout.write("  Acted gap already has an issue; skipping.")
 
-        self.stdout.write(self.style.SUCCESS("Sample data loaded. Open the dashboard and click Act on a gap to create an issue with research, questions, and a fix."))
+        self.stdout.write(self.style.SUCCESS("Mock data loaded. Run the app and test the dashboard, issues, fixes."))

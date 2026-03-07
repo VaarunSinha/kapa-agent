@@ -1,11 +1,14 @@
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 
+logger = logging.getLogger(__name__)
+
 from data.models import CoverageGap
 from .models import Issue, Research, Question, Fix
-from .demo_data import create_demo_data_for_issue
+from .tasks import create_issue_task, research_issue_task, publish_fixes_task, _get_repo_for_issue
 from .serializers import (
     IssueSerializer,
     ResearchSerializer,
@@ -37,10 +40,7 @@ class CoverageGapActAPIView(APIView):
         )
         gap.status = "acted"
         gap.save(update_fields=["status"])
-
-        # Create sample research, questions, and fix so the new issue has demo data to view
-        create_demo_data_for_issue(issue)
-
+        create_issue_task.delay(str(issue.id))
         return Response({"issue_id": str(issue.id)}, status=status.HTTP_201_CREATED)
 
 
@@ -90,7 +90,7 @@ class QuestionsByResearchAPIView(APIView):
 
 
 class QuestionsSubmitAPIView(APIView):
-    """POST /api/questions/submit — save answers. Body: {"answers": [{"question_id": "uuid", "answer": "..."}, ...]} or {"answers": {"question-uuid": "value", ...}}."""
+    """POST /api/questions/submit — save answers. Body: {"research_id": "uuid", "answers": [...]} or answers as dict keyed by question id. After save, re-queues research_issue_task."""
 
     def post(self, request):
         raw = request.data.get("answers")
@@ -129,6 +129,14 @@ class QuestionsSubmitAPIView(APIView):
 
         if errors:
             return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        research_id = request.data.get("research_id")
+        if research_id:
+            try:
+                research = Research.objects.get(pk=research_id)
+                research_issue_task.delay(str(research.issue_id))
+            except (Research.DoesNotExist, ValueError):
+                pass
         return Response({"status": "ok"})
 
 
@@ -164,3 +172,72 @@ class FixesByIssueAPIView(APIView):
         fixes = Fix.objects.filter(issue_id=issue_id).order_by("-created_at")
         serializer = FixListSerializer(fixes, many=True)
         return Response(serializer.data)
+
+
+class FixApproveAPIView(APIView):
+    """POST /api/fixes/<id>/approve — set fix approved and trigger publish_fixes_task."""
+
+    def post(self, request, id):
+        try:
+            fix = Fix.objects.get(pk=id)
+        except Fix.DoesNotExist:
+            return Response({"detail": "Fix not found."}, status=status.HTTP_404_NOT_FOUND)
+        fix.status = "approved"
+        fix.save(update_fields=["status"])
+        publish_fixes_task.delay(str(fix.id))
+        return Response({"status": "ok", "fix_id": str(fix.id)})
+
+
+def _mock_chat_edit_files(files: list, message: str) -> list:
+    """Mock: apply user message to fix files (e.g. append a line). Returns updated list of {path, content}."""
+    if not files:
+        return [{"path": "docs/update.md", "content": f"# Update\n\nBased on your request: {message[:200]}\n"}]
+    updated = []
+    for f in files:
+        path = f.get("path", "")
+        content = f.get("content", "")
+        extra = f"\n\n<!-- Applied: {message[:80]} -->"
+        updated.append({"path": path, "content": content + extra})
+    return updated
+
+
+class FixChatAPIView(APIView):
+    """POST /api/fixes/<id>/chat — mock edit fix from user message; update Fix.files, return updated files.
+    If fix is already published (PR exists), push a new commit to the same branch."""
+
+    def post(self, request, id):
+        try:
+            fix = Fix.objects.select_related("issue").get(pk=id)
+        except Fix.DoesNotExist:
+            return Response({"detail": "Fix not found."}, status=status.HTTP_404_NOT_FOUND)
+        message = (request.data.get("message") or "").strip()
+        files = fix.files if fix.files else []
+        if not files and fix.file_path:
+            files = [{"path": fix.file_path, "content": fix.patch or ""}]
+        updated_files = _mock_chat_edit_files(files, message or "No message")
+        fix.files = updated_files
+        fix.save(update_fields=["files"])
+        if fix.status == "published" and fix.branch_name:
+            installation_id, repo = _get_repo_for_issue(fix.issue)
+            if installation_id and repo:
+                try:
+                    from github import services as github_services
+                    github_services.commit_multiple_files(
+                        installation_id, repo, fix.branch_name, {"files": updated_files}
+                    )
+                    logger.info(
+                        "Fix chat: pushed extra commit to branch %s for fix %s",
+                        fix.branch_name,
+                        id,
+                    )
+                except Exception as e:
+                    logger.exception(
+                        "Fix chat: failed to push extra commit for fix %s: %s",
+                        id,
+                        e,
+                    )
+        out = [
+            {"file_path": f.get("path", ""), "diff": f.get("content", ""), "markdown": f.get("content")}
+            for f in updated_files
+        ]
+        return Response({"files": out})

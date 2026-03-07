@@ -1,9 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { Shell, PageHeader, StatusBadge, ErrorBanner, tokens } from "@/components/shared";
+import { useParams, useRouter } from "next/navigation";
+import { Shell, PageHeader, StatusBadge, ErrorBanner } from "@/components/shared";
 import { FixPreview } from "@/components/FixPreview";
 import { FixChatPanel } from "@/components/FixChatPanel";
+
+const API_BASE = typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
+  : "";
 
 interface Fix {
   id: string;
@@ -15,15 +19,18 @@ interface Fix {
 
 export default function FixReviewPage() {
   const { fix_id } = useParams<{ fix_id: string }>();
-
+  const router = useRouter();
   const [fix, setFix] = useState<Fix | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!fix_id) return;
-    fetch(`/api/fixes/${fix_id}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    fetch(`${API_BASE}/api/fixes/${fix_id}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(setFix)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
@@ -53,8 +60,14 @@ export default function FixReviewPage() {
           {/* Left: diff/preview */}
           <FixPreview fix={fix} loading={loading} />
 
-          {/* Right: chat */}
-          <FixChatPanel />
+          {/* Right: chat + approve */}
+          <FixChatPanel
+            fixId={fix?.id ?? fix_id ?? ""}
+            fix={fix}
+            onFixUpdated={(updated) => setFix(prev => prev ? { ...prev, ...updated } : null)}
+            onApprove={() => router.push(fix?.issue_id ? `/issues/${fix.issue_id}` : "/fixes")}
+            apiBase={API_BASE}
+          />
         </div>
       </div>
     </Shell>

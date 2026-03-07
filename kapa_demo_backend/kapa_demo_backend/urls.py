@@ -22,4 +22,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("data.urls")),
     path("api/", include("agent.urls")),
+    path("api/github/", include("github.urls")),
+    path("github/", include("github.setup_urls")),
 ]

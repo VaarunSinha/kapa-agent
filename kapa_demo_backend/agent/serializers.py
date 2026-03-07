@@ -90,7 +90,9 @@ class FixListSerializer(serializers.ModelSerializer):
         fields = ["id", "issue_id", "issue_title", "status", "files_count", "created_at"]
 
     def get_files_count(self, obj):
-        return 1
+        if obj.files:
+            return len(obj.files)
+        return 1 if obj.file_path else 0
 
 
 class FixDetailSerializer(serializers.ModelSerializer):
@@ -102,10 +104,21 @@ class FixDetailSerializer(serializers.ModelSerializer):
         fields = ["id", "issue_id", "status", "created_at", "files"]
 
     def get_files(self, obj):
-        return [
-            {
-                "file_path": obj.file_path,
-                "diff": obj.patch,
-                "markdown": None,
-            }
-        ]
+        if obj.files:
+            return [
+                {
+                    "file_path": f.get("path", ""),
+                    "diff": f.get("content", ""),
+                    "markdown": f.get("content"),
+                }
+                for f in obj.files
+            ]
+        if obj.file_path:
+            return [
+                {
+                    "file_path": obj.file_path,
+                    "diff": obj.patch,
+                    "markdown": None,
+                }
+            ]
+        return []

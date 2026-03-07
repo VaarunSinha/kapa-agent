@@ -107,19 +107,26 @@ export default function IssueDetailPage() {
         {/* Research */}
         <ResearchPanel research={research} loading={researchLoading} />
 
-        {/* Questions */}
+        {/* Questions — only show form when issue is still waiting for answers */}
         <Card style={{ padding: 24 }}>
           <SectionLabel icon={<SparkleIcon />} label="Questions" />
-          {questionsLoading ? (
+          {questionsLoading && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <Skeleton h={14} w="70%" /><Skeleton h={40} /><Skeleton h={14} w="60%" /><Skeleton h={40} />
             </div>
-          ) : questionsData && questionsData.questions.length > 0 ? (
+          )}
+          {!questionsLoading && issue?.status === "questions_pending" && questionsData && questionsData.questions.length > 0 && (
             <QuestionsForm
               researchId={questionsData.research_id}
               questions={questionsData.questions}
             />
-          ) : (
+          )}
+          {!questionsLoading && issue && ["research_complete", "fix_proposed", "completed"].includes(issue.status) && questionsData?.questions?.length > 0 && (
+            <p style={{ fontSize: 13, color: "#444", fontFamily: tokens.font }}>
+              Questions have been answered. Research is complete.
+            </p>
+          )}
+          {!questionsLoading && !(issue?.status === "questions_pending" && questionsData?.questions?.length) && !(issue && ["research_complete", "fix_proposed", "completed"].includes(issue.status) && questionsData?.questions?.length) && (
             <p style={{ fontSize: 13, color: "#444", fontFamily: tokens.font }}>
               No questions available yet.
             </p>
