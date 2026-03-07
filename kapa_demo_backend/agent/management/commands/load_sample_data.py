@@ -1,100 +1,96 @@
 """
-Load mock/test data: coverage gaps + one acted gap with issue, research, questions, fix.
-No workflow or API calls—just seeds the DB so you can test the UI.
+Load sample coverage gaps aligned with intentional documentation gaps.
+Use for demo: Coverage Gap → Issue → Research → Questions → Fix → Review → PR.
 
-After resetting DB:
-  rm db.sqlite3
-  python manage.py migrate
   python manage.py load_sample_data
+  python manage.py load_sample_data --clear   # Reset all demo data including GitHub installations
 """
 from django.core.management.base import BaseCommand
 from data.models import CoverageGap
 from agent.models import Issue, Fix, Question, Research
-from agent.demo_data import create_demo_data_for_issue
+
+
+# Five coverage gaps matching the intentional docs gaps (exact title/finding/suggestion)
+COVERAGE_GAPS = [
+    {
+        "title": "Research pipeline retrieval logic",
+        "conversation_count": 12,
+        "finding": "Users asked how the system determines which documentation files are relevant during research. The documentation mentions a research agent but does not explain how retrieval works.",
+        "suggestion": "Document the vector retrieval process and how LlamaIndex is used to select documentation chunks.",
+        "status": "open",
+    },
+    {
+        "title": "Documentation style alignment",
+        "conversation_count": 10,
+        "finding": "Users asked how the system ensures generated documentation matches the project's writing style. The docs mention a style guide but do not explain how it is derived.",
+        "suggestion": "Explain how the system extracts style patterns from existing documentation and generates style.md.",
+        "status": "open",
+    },
+    {
+        "title": "GitHub App authentication flow",
+        "conversation_count": 8,
+        "finding": "Users asked how the backend authenticates with GitHub when creating issues and pull requests. The documentation references a GitHub App but does not describe the authentication mechanism.",
+        "suggestion": "Add documentation describing the GitHub App JWT flow and installation tokens.",
+        "status": "open",
+    },
+    {
+        "title": "Fix assistant editing workflow",
+        "conversation_count": 14,
+        "finding": "Users asked how fixes can be edited through the chat interface. The documentation mentions a Fix Assistant but does not explain how edits are applied.",
+        "suggestion": "Document the fix editing endpoint and how semantic edits update documentation patches.",
+        "status": "open",
+    },
+    {
+        "title": "Handling multi-file documentation fixes",
+        "conversation_count": 9,
+        "finding": "Users asked how documentation fixes that affect multiple files are applied. The documentation references fixes but does not explain multi-file change handling.",
+        "suggestion": "Document how fixes group multiple file updates and how commits are generated.",
+        "status": "open",
+    },
+]
 
 
 class Command(BaseCommand):
-    help = "Load mock data: coverage gaps and one acted gap with issue, research, questions, fix."
+    help = "Load five coverage gaps aligned with docs gaps. Use --clear to reset all demo data (including GitHub installations)."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--clear",
             action="store_true",
-            help="Delete existing agent + coverage gap data before loading.",
+            help="Delete CoverageGap, Issue, Research, Question, Fix, and GitHubInstallation; then exit.",
         )
 
     def handle(self, *args, **options):
         if options["clear"]:
-            self.stdout.write("Clearing existing data...")
-            Fix.objects.all().delete()
-            Question.objects.all().delete()
-            Research.objects.all().delete()
-            Issue.objects.all().delete()
-            CoverageGap.objects.all().delete()
-            self.stdout.write(self.style.SUCCESS("Cleared."))
+            self._clear_all()
+            return
 
-        # Open coverage gaps (user can click Act on these)
-        open_gaps = [
-            {
-                "title": "Installation steps not documented",
-                "conversation_count": 12,
-                "finding": "Users frequently ask 'How do I install the CLI?' but the docs jump straight to usage.",
-                "suggestion": "Add a short 'Installation' section with npm and global install options.",
-                "status": "open",
-            },
-            {
-                "title": "API rate limits unclear",
-                "conversation_count": 8,
-                "finding": "Conversations show confusion about rate limits and 429 responses.",
-                "suggestion": "Document rate limits and retry behavior in the API reference.",
-                "status": "open",
-            },
-        ]
-        for g in open_gaps:
-            gap, created = CoverageGap.objects.get_or_create(
+        self.stdout.write("Clearing existing coverage gaps...")
+        CoverageGap.objects.all().delete()
+
+        for g in COVERAGE_GAPS:
+            CoverageGap.objects.create(
                 title=g["title"],
-                defaults={
-                    "conversation_count": g["conversation_count"],
-                    "finding": g["finding"],
-                    "suggestion": g["suggestion"],
-                    "status": g["status"],
-                },
+                conversation_count=g["conversation_count"],
+                finding=g["finding"],
+                suggestion=g["suggestion"],
+                status=g["status"],
             )
-            if created:
-                self.stdout.write(f"  Created coverage gap: {gap.title}")
+            self.stdout.write(f"  Created coverage gap: {g['title']}")
 
-        # One acted gap with full mock: issue + research + questions + fix (multi-file)
-        acted_gap_data = {
-            "title": "Webhook payload schema missing",
-            "conversation_count": 5,
-            "finding": "Users ask for webhook payload examples; only high-level description exists.",
-            "suggestion": "Add a 'Payload schema' subsection with a sample JSON body.",
-            "status": "acted",
-        }
-        acted_gap, gap_created = CoverageGap.objects.get_or_create(
-            title=acted_gap_data["title"],
-            defaults={
-                "conversation_count": acted_gap_data["conversation_count"],
-                "finding": acted_gap_data["finding"],
-                "suggestion": acted_gap_data["suggestion"],
-                "status": acted_gap_data["status"],
-            },
-        )
-        if gap_created:
-            self.stdout.write(f"  Created acted gap: {acted_gap.title}")
+        self.stdout.write(self.style.SUCCESS("Sample data loaded. Five open coverage gaps ready for demo."))
 
-        existing_issue = Issue.objects.filter(coverage_gap=acted_gap).first()
-        if not existing_issue:
-            issue = Issue.objects.create(
-                coverage_gap=acted_gap,
-                title=acted_gap.title,
-                description=acted_gap.finding or "",
-                status="fix_proposed",
-            )
-            self.stdout.write(f"  Created issue: {issue.title}")
-            create_demo_data_for_issue(issue)
-            self.stdout.write("  Added research, questions, and fix (multi-file mock).")
-        else:
-            self.stdout.write("  Acted gap already has an issue; skipping.")
-
-        self.stdout.write(self.style.SUCCESS("Mock data loaded. Run the app and test the dashboard, issues, fixes."))
+    def _clear_all(self):
+        """Delete in dependency order: Fix → Question → Research → Issue → CoverageGap → GitHubInstallation."""
+        self.stdout.write("Clearing existing data...")
+        Fix.objects.all().delete()
+        Question.objects.all().delete()
+        Research.objects.all().delete()
+        Issue.objects.all().delete()
+        CoverageGap.objects.all().delete()
+        try:
+            from github.models import GitHubInstallation
+            GitHubInstallation.objects.all().delete()
+        except Exception:
+            pass
+        self.stdout.write(self.style.SUCCESS("Cleared. Run load_sample_data without --clear to load coverage gaps."))

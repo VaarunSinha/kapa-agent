@@ -5,65 +5,61 @@ title: Architecture Overview
 
 # Architecture Overview
 
-The Kapa Content Gap Action Agent is built as a frontend, a backend orchestrator, and a set of agents that perform research and writing. GitHub is used for input (issues) and output (comments, pull requests).
+The Kapa Content Gap Action Agent is built as a Next.js frontend, a Django backend with Celery, a GitHub App integration, vector retrieval (LlamaIndex), and several AI agents. GitHub is used for issues and for output (comments, pull requests).
 
 ## High-level flow
 
-1. A documentation gap is reported via a GitHub issue.
-2. The backend receives the trigger (from the frontend or from a webhook) and starts the research processor.
-3. The research agent analyzes the repository and identifies relevant files. Findings are summarized into a research report.
-4. The writer agent consumes the research report and drafts documentation changes.
-5. The backend creates a pull request with the proposed documentation and any open questions for engineers.
+1. **Coverage gap** — Identified from conversations or analytics; stored with title, finding, suggestion.
+2. **Issue** — User acts on a gap; backend creates an Issue (Issue Creator agent) and enqueues work.
+3. **Research** — Celery runs the Research Agent with repository and documentation context. It may ask questions or produce a research report.
+4. **Questions** — If the agent asks questions, the frontend collects answers; backend re-runs research with answers.
+5. **Fix** — Writer Agent produces documentation changes from the research report. Fixes may affect multiple files. A Fix record holds the proposed changes.
+6. **Review** — User reviews the fix in the UI; edits can be made via the Fix Assistant. Approval triggers publish.
+7. **Pull request** — Backend creates a branch, commits the fix, and opens a PR; optionally comments on the issue.
+
+Documentation fixes may affect multiple files; the system supports proposing and reviewing such changes in one fix.
 
 ## Components
 
 ### Frontend
 
-A **Next.js** application that provides:
+A **Next.js** application (`kapa-demo`) that provides:
 
-- A way to trigger documentation tasks (e.g., by linking a GitHub issue or entering a topic)
-- Status views for running or completed tasks
-- Links to generated pull requests
-
-The frontend talks to the Django backend over HTTP. It does not call GitHub or run agents directly.
+- Dashboard with coverage gaps and metrics
+- List and detail views for issues, research, and fixes
+- Fix preview and Fix Assistant for editing proposed docs
+- Integration with the Django backend over HTTP (no direct GitHub or agent calls)
 
 ### Backend
 
-A **Django** service that:
+A **Django** service (`kapa_demo_backend`) that:
 
-- Exposes REST endpoints for the frontend and (optionally) webhooks
-- Orchestrates the research and writer agents
-- Communicates with GitHub (read repo content, comment on issues, create branches and pull requests)
-- Stores task state and research outputs as needed
+- Exposes REST endpoints for coverage gaps, issues, research, questions, and fixes
+- Runs Celery tasks: create_issue_task, research_issue_task, publish_fixes_task
+- Uses the GitHub App for repo access, branches, commits, and PRs
+- Stores CoverageGap, Issue, Research, Question, Fix and related state
 
-### Research Agent
+### Vector retrieval
 
-The research agent is responsible for understanding the codebase in the context of a documentation question. It receives the issue or topic, selects relevant files from the repository, and produces a structured research report that the writer agent uses as input. The report typically includes file references, code excerpts, and summarized findings.
+The backend uses **LlamaIndex** with a vector store to provide relevant documentation and code context to the Research and Writer agents. Indexing is tied to the connected GitHub installation.
 
-### Writer Agent
+### Agents
 
-The writer agent takes the research report and generates documentation content. It produces new or updated Markdown (or other doc formats) and can attach a list of open questions or assumptions for engineers to confirm. Output is passed back to the backend for inclusion in a pull request.
+- **Issue Creator**: Turns a coverage gap (title, finding, suggestion) into an issue title, description, and research goal using repo understanding.
+- **Research Agent**: Consumes issue context and relevant content, produces a research report or asks questions.
+- **Writer Agent**: Consumes the research report and style guidance, produces documentation file content.
+- **Fix Assistant**: Applies user edits from the UI to fix content (used during review).
+
+See [Agents](/docs/architecture/agents) for more detail.
 
 ### GitHub integration
 
-The backend uses a **GitHub App** to:
-
-- Read repository contents (e.g., source and existing docs)
-- Comment on issues (e.g., to link a PR or post status)
-- Create branches and pull requests containing the proposed documentation changes
-
-Details of how the agent uses the GitHub API for these operations are covered in [GitHub integration](/docs/api/github-integration).
+The backend uses a **GitHub App** to read repository content, create branches and commits, open pull requests, and comment on issues. See [GitHub integration](/docs/api/github-integration).
 
 ## Data flow
 
 ```
-GitHub Issue → Backend → Research Agent → Research Report
-                                    ↓
-              Writer Agent ← Research Report
-                    ↓
-              Proposed docs (files + optional questions)
-                    ↓
-              Backend → GitHub (new branch, PR, issue comment)
+Coverage Gap → Act → Issue → Research (→ Questions → Research) → Fix → Approve → PR
 ```
 
-The backend is the single point of integration with GitHub and the only component that triggers or waits on the agents. The frontend is stateless with respect to the pipeline; it only invokes backend endpoints and displays results.
+The frontend drives the flow by calling the backend API; Celery runs research and publish tasks. The backend is the single point of integration with GitHub and the only component that runs the agents.

@@ -13,16 +13,16 @@ Follow the [Getting Started](/docs/getting-started) guide to clone the repo, ins
 
 ## Code structure
 
-- **Backend**: Django apps under `backend/`. Agent orchestration, GitHub client, and API views live here. Keep business logic in services or dedicated modules rather than in views.
-- **Frontend**: Next.js under `frontend/`. Pages and components call the backend API; no direct GitHub or agent calls from the client.
-- **Docs**: Markdown in `docs/` (this site). The agent may propose changes under this tree; keep structure and frontmatter consistent for Docusaurus.
+- **Backend**: Django apps under `kapa_demo_backend/`. Agent orchestration, GitHub client, and API views live here. Keep business logic in services or dedicated modules rather than in views.
+- **Frontend**: Next.js under `kapa-demo/`. Pages and components call the backend API; no direct GitHub or agent calls from the client.
+- **Docs**: Markdown in `kapa-demo-docs/docs/` (this site). The agent may propose changes here; keep structure and frontmatter consistent for Docusaurus.
 
 ## Running tests
 
 **Backend:**
 
 ```bash
-cd backend
+cd kapa_demo_backend
 source .venv/bin/activate
 python manage.py test
 ```
@@ -30,7 +30,7 @@ python manage.py test
 **Frontend:**
 
 ```bash
-cd frontend
+cd kapa-demo
 npm test
 ```
 
@@ -48,13 +48,13 @@ Add tests for new API endpoints and for agent pipeline behavior where possible. 
 
 When adding or changing features that affect users or operators:
 
-- Update the relevant docs under `docs/`. Use the same tone and structure as the rest of the set (clear, concise, no placeholders in published content).
+- Update the relevant docs under `kapa-demo-docs/docs/`. Use the same tone and structure as the rest of the set (clear, concise, no placeholders in published content).
 - If you add a new API endpoint, document it in [Backend API](/docs/api/backend-api) with method, path, request body, and response format.
 - For architecture or agent behavior changes, update [Architecture overview](/docs/architecture/overview) or [Agents](/docs/architecture/agents) as needed.
 
 ## Code style
 
-- **Python**: Follow PEP 8. Use Black for formatting and run it before committing (e.g., `black backend/`).
+- **Python**: Follow PEP 8. Use Black for formatting and run it before committing (e.g., `black kapa_demo_backend/`).
 - **JavaScript/TypeScript**: Use the project's ESLint and Prettier config. Run `npm run lint` in the frontend before submitting.
 - **Markdown**: Use standard Markdown and Docusaurus frontmatter. Keep line length reasonable for diffs (e.g., wrap at 100 characters where it doesn't hurt readability).
 
