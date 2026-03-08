@@ -14,7 +14,10 @@ interface Installation {
   repository_name: string;
   installed_at: string | null;
   understanding: string;
+  source_status?: string;
 }
+
+const POLL_INTERVAL_MS = 2500;
 
 function GitHubSetupContent() {
   const searchParams = useSearchParams();
@@ -27,10 +30,11 @@ function GitHubSetupContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const url = installationId
+    ? `${API_BASE}/api/github/installation?installation_id=${installationId}`
+    : `${API_BASE}/api/github/installation`;
+
   useEffect(() => {
-    const url = installationId
-      ? `${API_BASE}/api/github/installation?installation_id=${installationId}`
-      : `${API_BASE}/api/github/installation`;
     fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -44,6 +48,31 @@ function GitHubSetupContent() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [installationId]);
+
+  // When done=1 and source_status is not ready, poll until real understanding has loaded
+  const stillIndexing = Boolean(
+    done === "1" &&
+    installation &&
+    installation.source_status !== "ready" &&
+    installation.source_status !== "failed"
+  );
+
+  useEffect(() => {
+    if (!stillIndexing || !installationId) return;
+    const interval = setInterval(() => {
+      fetch(url)
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          setInstallation(data);
+          setUnderstanding(data.understanding || "");
+        })
+        .catch(() => {});
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [stillIndexing, installationId, url]);
 
   const handleSave = () => {
     if (!installation) return;
@@ -87,6 +116,24 @@ function GitHubSetupContent() {
             You may have been redirected here before the installation was recorded. Try{" "}
             <Link href="/dashboard" style={{ color: tokens.purple }}>Connect Source Code</Link> from Coverage Gaps again.
           </p>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (stillIndexing) {
+    return (
+      <Shell>
+        <PageHeader title="GitHub Setup" subtitle="Setting up your repository connection…" />
+        <div style={{ padding: "32px 40px" }}>
+          <Card style={{ padding: 48, textAlign: "center" }}>
+            <p style={{ fontSize: 14, color: tokens.textDim, fontFamily: tokens.font, marginBottom: 8 }}>
+              Loading repository understanding…
+            </p>
+            <p style={{ fontSize: 12, color: "#555", fontFamily: tokens.font }}>
+              Cloning repo, indexing docs, and generating understanding. This may take a minute.
+            </p>
+          </Card>
         </div>
       </Shell>
     );

@@ -21,16 +21,20 @@ interface QuestionsFormProps {
 
 // Map our API question types to SurveyJS element types
 function toSurveyElements(questions: Question[]) {
-  return questions.map((q) => ({
-    name: q.id,
-    type:
+  return questions.map((q) => {
+    const type =
       q.type === "textarea" ? "comment" :
       q.type === "multiple_choice" ? "radiogroup" :
-      q.type,
-    title: q.title,
-    isRequired: q.required ?? false,
-    ...(q.choices ? { choices: q.choices } : {}),
-  }));
+      q.type;
+    const choices = Array.isArray(q.choices) ? q.choices : [];
+    return {
+      name: q.id,
+      type,
+      title: q.title,
+      isRequired: q.required ?? false,
+      ...(type === "radiogroup" ? { choices } : {}),
+    };
+  });
 }
 
 export function QuestionsForm({ researchId, questions, onSubmitSuccess }: QuestionsFormProps) {
@@ -61,6 +65,11 @@ export function QuestionsForm({ researchId, questions, onSubmitSuccess }: Questi
       }
       .sd-root-modern .sd-body { background: transparent; }
       .sd-root-modern .sd-page { padding: 0; }
+      .sd-root-modern input,
+      .sd-root-modern textarea,
+      .sd-root-modern .sd-input {
+        color: var(--foreground) !important;
+      }
     `;
     if (!document.getElementById("survey-dark-override")) {
       document.head.appendChild(style);

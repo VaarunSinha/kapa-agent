@@ -8,12 +8,16 @@ interface Message {
   ts: number;
 }
 
+const FALLBACK_INTRO = "Assistant";
+const FALLBACK_REPLY = "Done.";
+
 interface FixChatPanelProps {
   readonly fixId: string;
-  readonly fix: { id: string; issue_id: string; status: string; files: { file_path: string; diff?: string; markdown?: string }[] } | null;
-  readonly onFixUpdated: (updated: { id: string; issue_id: string; status: string; files: { file_path: string; diff?: string; markdown?: string }[] }) => void;
+  readonly fix: { id: string; issue_id: string; status: string; files: { file_path: string; diff?: string; markdown?: string }[]; assistant_intro?: string; assistant_reply_success?: string } | null;
+  readonly onFixUpdated: (updated: { files?: { file_path: string; diff?: string; markdown?: string }[] }) => void;
   readonly onApprove: () => void;
   readonly apiBase?: string;
+  readonly onThinkingChange?: (thinking: boolean) => void;
 }
 
 function MessageBubble({ msg }: { msg: Message }) {
@@ -54,14 +58,22 @@ function MessageBubble({ msg }: { msg: Message }) {
 }
 
 export function FixChatPanel(props: Readonly<FixChatPanelProps>) {
-  const { fixId, fix, onFixUpdated, onApprove, apiBase = "" } = props;
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Hi! I've reviewed the proposed documentation fix. Feel free to ask me to revise specific sections, change the tone, add examples, or restructure any part of it.",
-      ts: Date.now(),
-    },
+  const { fixId, fix, onFixUpdated, onApprove, apiBase = "", onThinkingChange } = props;
+  const intro = (fix?.assistant_intro ?? FALLBACK_INTRO).trim() || FALLBACK_INTRO;
+  const [messages, setMessages] = useState<Message[]>(() => [
+    { role: "assistant", content: intro, ts: Date.now() },
   ]);
+
+  // When fix loads with a new intro, replace the first message if it's still the fallback or stale
+  useEffect(() => {
+    if (!intro || intro === FALLBACK_INTRO) return;
+    setMessages(prev => {
+      if (prev.length === 1 && prev[0].role === "assistant") {
+        return [{ role: "assistant", content: intro, ts: Date.now() }];
+      }
+      return prev;
+    });
+  }, [intro]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -70,6 +82,10 @@ export function FixChatPanel(props: Readonly<FixChatPanelProps>) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
+
+  useEffect(() => {
+    onThinkingChange?.(thinking);
+  }, [thinking, onThinkingChange]);
 
   const send = async () => {
     const text = input.trim();
@@ -86,12 +102,22 @@ export function FixChatPanel(props: Readonly<FixChatPanelProps>) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.files && fix) {
-          onFixUpdated({ ...fix, files: data.files });
+        if (Array.isArray(data.files) && data.files.length > 0) {
+          onFixUpdated({ files: data.files });
         }
-        setMessages(prev => [...prev, { role: "assistant", content: "I've updated the proposed fix based on your request.", ts: Date.now() }]);
+        const reply = (data.assistant_reply ?? fix?.assistant_reply_success ?? FALLBACK_REPLY).trim() || FALLBACK_REPLY;
+        setMessages(prev => [...prev, { role: "assistant", content: reply, ts: Date.now() }]);
       } else {
-        setMessages(prev => [...prev, { role: "assistant", content: "Something went wrong updating the fix. Please try again.", ts: Date.now() }]);
+        let errorMessage = "Something went wrong updating the fix. Please try again.";
+        try {
+          const errData = await res.json();
+          if (errData?.error && typeof errData.error === "string") {
+            errorMessage = errData.error;
+          }
+        } catch {
+          // ignore JSON parse failure
+        }
+        setMessages(prev => [...prev, { role: "assistant", content: errorMessage, ts: Date.now() }]);
       }
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: "Request failed. Please try again.", ts: Date.now() }]);

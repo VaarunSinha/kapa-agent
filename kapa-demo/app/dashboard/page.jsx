@@ -310,10 +310,11 @@ function StatusBadge({ status }) {
 }
 
 // ─── CoverageGapCard ──────────────────────────────────────────────────────────
-function CoverageGapCard({ gap, onAct }) {
+function CoverageGapCard({ gap, onAct, sourceStatus }) {
   const router = useRouter();
   const [acting, setActing] = useState(false);
   const [localStatus, setLocalStatus] = useState(gap.status);
+  const actEnabled = sourceStatus === "ready";
 
   const handleAct = async () => {
     setActing(true);
@@ -406,27 +407,34 @@ function CoverageGapCard({ gap, onAct }) {
         display: "flex", alignItems: "center", gap: 10,
         background: "rgba(255,255,255,0.015)",
       }}>
-        {/* Act */}
+        {/* Act: enabled only when sourceStatus === ready */}
+        {!actEnabled && localStatus !== "acted" && (
+          <span style={{ fontSize: 12, color: "#555", fontFamily: "'DM Mono', monospace" }}>
+            Loading documentation index…
+          </span>
+        )}
         <button
           onClick={handleAct}
-          disabled={acting || localStatus === "acted"}
+          disabled={acting || localStatus === "acted" || !actEnabled}
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "7px 16px", borderRadius: 7,
             background: localStatus === "acted"
               ? "rgba(168,85,247,0.12)"
-              : "linear-gradient(135deg,rgba(168,85,247,0.8),rgba(124,58,237,0.8))",
+              : !actEnabled
+                ? "rgba(255,255,255,0.06)"
+                : "linear-gradient(135deg,rgba(168,85,247,0.8),rgba(124,58,237,0.8))",
             border: localStatus === "acted"
               ? "1px solid rgba(168,85,247,0.3)"
               : "1px solid rgba(168,85,247,0.5)",
-            color: localStatus === "acted" ? "#a855f7" : "#fff",
-            fontSize: 12, fontWeight: 600, cursor: acting || localStatus === "acted" ? "default" : "pointer",
+            color: localStatus === "acted" ? "#a855f7" : !actEnabled ? "#555" : "#fff",
+            fontSize: 12, fontWeight: 600, cursor: acting || localStatus === "acted" || !actEnabled ? "default" : "pointer",
             fontFamily: "'DM Mono', monospace",
             opacity: acting ? 0.7 : 1,
             transition: "all 0.15s",
             outline: "none",
           }}
-          onMouseEnter={e => { if (localStatus !== "acted" && !acting) e.currentTarget.style.filter = "brightness(1.15)"; }}
+          onMouseEnter={e => { if (localStatus !== "acted" && !acting && actEnabled) e.currentTarget.style.filter = "brightness(1.15)"; }}
           onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
         >
           {acting ? <IconLoader /> : localStatus === "acted" ? <IconCheck /> : <IconZap />}
@@ -670,6 +678,7 @@ export default function CoverageGapsPage() {
                       <CoverageGapCard
                         gap={gap}
                         onAct={handleAct}
+                        sourceStatus={data.sourceStatus || "pending"}
                       />
                     </div>
                   ))}
