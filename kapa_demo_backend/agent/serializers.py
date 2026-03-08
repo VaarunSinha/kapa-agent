@@ -107,21 +107,14 @@ class FixDetailSerializer(serializers.ModelSerializer):
 
     def get_files(self, obj):
         if obj.files:
-            def content_to_diff(content):
-                """Fallback: format raw content as unified-diff additions (backward compat when no original_content)."""
-                if not content:
-                    return ""
-                lines = content.splitlines()
-                return "\n".join("+ " + line for line in lines)
-
             result = []
             for f in obj.files:
-                path = f.get("path", "")
-                content = f.get("content", "")
+                path = f.get("path") or f.get("file_path") or ""
+                content = f.get("content") or f.get("diff") or f.get("patch") or ""
                 if f.get("original_content") is not None:
                     diff = unified_diff_string(f["original_content"], content, path)
                 else:
-                    diff = content_to_diff(content)
+                    diff = "(Original not available; cannot show diff.)"
                 result.append({
                     "file_path": path,
                     "diff": diff,

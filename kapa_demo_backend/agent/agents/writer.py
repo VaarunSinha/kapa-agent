@@ -16,7 +16,10 @@ WRITER_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string"},
-                    "content": {"type": "string"},
+                    "content": {
+                        "type": "string",
+                        "description": "Full file content = existing content with only the requested additions or edits; do not omit or rewrite existing sections.",
+                    },
                 },
                 "required": ["path", "content"],
                 "additionalProperties": False,
@@ -62,7 +65,12 @@ def run_writer(
         retrieval_context=retrieval_snippet,
     )
     if file_path and file_content is not None:
-        user_prompt += f"\n\nCurrent file to edit (path: {file_path}):\n<content>\n{file_content[:8000]}\n</content>\n\nUse this content as the base and apply the doc updates for the issue above."
+        # Send the whole file (cap at 100k chars for context limits; prefer no truncation)
+        file_snippet = (file_content or "")[:100000]
+        user_prompt += (
+            f"\n\nThe following is the complete file to edit (path: {file_path}):\n<content>\n{file_snippet}\n</content>\n\n"
+            "Your response must be this entire content with only your additions inserted. Add only; do not delete, summarize, or replace any existing sections."
+        )
 
     out = structured_completion(
         system_prompt=WRITER_SYSTEM,

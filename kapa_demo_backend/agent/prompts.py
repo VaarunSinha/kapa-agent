@@ -52,6 +52,7 @@ Output fields:
 
 research_summary
 files_referenced
+file_to_edit (when action is conclude_research: the one documentation file path the writer should edit; must be from files_referenced)
 coverage_gap_description
 recommended_changes
 confidence_score (number between 0 and 1)
@@ -141,6 +142,7 @@ You MUST output substantive, non-empty content for every field:
 
 - research_summary: 2–4 sentences summarizing what was found in code and which documentation should be updated. Do not output a single phrase like "Research completed."; describe the implementation and the doc change.
 - files_referenced: list of file paths. You MUST include every path from the given code_files list (the implementation files). Then add any documentation file paths from the documentation excerpts where this content should be plugged in. Only paths that appear in the excerpts or code_files; never invent paths. Never return an empty list if code_files was provided.
+- file_to_edit: the single documentation file path to edit (e.g. docs/architecture/agents.md). Must be one of the documentation paths in files_referenced where the new content should be added. Required.
 - coverage_gap_description: 1–3 sentences on what is missing or wrong in the current docs. Be specific.
 - recommended_changes: 1–4 sentences on what to add or change in the documentation. Be specific so a writer can apply the changes.
 - confidence_score: number between 0 and 1.
@@ -164,7 +166,7 @@ Documentation excerpts:
 {documentation_context}
 {user_answers_section}
 
-Where should this be plugged in? Output research_summary, files_referenced (include both code and doc paths), coverage_gap_description, recommended_changes, confidence_score.
+Where should this be plugged in? Output research_summary, files_referenced (include both code and doc paths), file_to_edit (the one doc file to edit), coverage_gap_description, recommended_changes, confidence_score.
 """
 
 
@@ -179,6 +181,8 @@ You receive research findings describing what documentation is missing or incorr
 
 Your task is to update the documentation to fix the gap.
 
+CRITICAL - Add only: Your output must be the EXACT existing file content with ONLY the requested additions. Do not delete, remove, reorder, or rewrite any existing section. When the research asks to add a section or paragraph, only insert that new content; leave every other part of the document unchanged.
+
 Rules:
 
 - Only edit existing documentation files.
@@ -187,6 +191,7 @@ Rules:
 - Maintain the existing document structure.
 - Do not remove or shorten existing sections or paragraphs unless the research explicitly states they are obsolete or the user request asks for removal.
 - Preserve all existing headings, lists, and body text; only add new content or revise specific parts that the research says need changing.
+- Prefer adding new sections or paragraphs; do not rewrite or replace existing ones.
 - Follow the provided documentation style guide.
 - Keep explanations concise and developer-focused.
 - Include examples when useful.
@@ -229,8 +234,7 @@ Documentation style guide:
 Relevant documentation excerpts:
 {retrieval_context}
 
-Update the documentation to resolve the research findings.
-Return the full updated file contents.
+Apply only the recommended documentation changes (add the requested content). Return the full file: the existing content with your additions only. Add only; do not remove or rewrite existing sections.
 """
 
 
@@ -338,18 +342,23 @@ Generate GitHub issue fields.
 FIX_ASSISTANT_SYSTEM = """
 You are a documentation editing assistant.
 
-The user provides documentation files and an editing instruction.
+The user provides documentation files and an editing instruction. For each file you may receive:
+- Original file (base to preserve): the repo or first version — use this as the base; do not remove any section unless the user explicitly asks to remove it.
+- Current draft: the latest edited version (may be same as original).
 
-Your task is to apply the instruction to the documentation.
+When only Current draft is provided (no Original file), treat the current draft as the complete document and preserve all of it; only apply the requested change.
+
+Your task is to apply the instruction by editing only what is necessary. Preserve every section, paragraph, and list item from the original unless the user explicitly asks to remove or delete something. Output the full file content: original + your edits. Do not return a shortened or "relevant only" version.
 
 Rules:
 
 - Preserve file paths exactly.
-- Only modify content that needs to change.
+- Only modify content that needs to change for the user's instruction.
 - Do not delete or remove existing sections, paragraphs, or list items unless the user explicitly asks to remove them.
 - Preserve the rest of the document unchanged; only add or modify the parts needed to fulfill the user's instruction.
 - Maintain the document structure.
 - Follow the style guide when available.
+- Always return the complete file content (full markdown), not a partial or summarized version.
 
 Output JSON format:
 
@@ -357,7 +366,7 @@ Output JSON format:
   "files": [
     {
       "path": "file path",
-      "content": "updated markdown"
+      "content": "full updated markdown"
     }
   ],
   "assistant_message": "One sentence for the user describing what you changed (e.g. 'Added the style guide derivation paragraph to the Writer section.')."
@@ -367,7 +376,7 @@ Output valid JSON only.
 """
 
 FIX_ASSISTANT_USER_TEMPLATE = """
-Current documentation files:
+For each file below we provide the original content (base to preserve) and the current draft. Apply the user's instruction by editing only what is necessary; preserve everything else from the original.
 
 {files_blob}
 
@@ -379,7 +388,7 @@ User instruction:
 
 {user_message}
 
-Apply the instruction. Return updated files and a brief assistant_message (one sentence) for the user describing what you changed.
+Apply the instruction. Return the full updated file contents and a brief assistant_message (one sentence) for the user describing what you changed.
 """
 
 

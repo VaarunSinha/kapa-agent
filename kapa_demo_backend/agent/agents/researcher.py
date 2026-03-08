@@ -39,6 +39,10 @@ RESEARCH_RESPONSE_SCHEMA = {
         "files_referenced": {"type": "array", "items": {"type": "string"}},
         "coverage_gap_description": {"type": "string"},
         "recommended_changes": {"type": "string"},
+        "file_to_edit": {
+            "type": "string",
+            "description": "When action is conclude_research: the single documentation file path the writer should edit (must be from files_referenced). Empty when ask_questions.",
+        },
         "confidence_score": {
             "type": "number",
             "description": "Confidence that the suggested documentation change addresses the gap (0-1). Required when action is conclude_research.",
@@ -51,6 +55,7 @@ RESEARCH_RESPONSE_SCHEMA = {
         "questions",
         "research_summary",
         "files_referenced",
+        "file_to_edit",
         "coverage_gap_description",
         "recommended_changes",
         "confidence_score",
@@ -106,6 +111,10 @@ DOC_PLACEMENT_RESPONSE_SCHEMA = {
     "properties": {
         "research_summary": {"type": "string"},
         "files_referenced": {"type": "array", "items": {"type": "string"}},
+        "file_to_edit": {
+            "type": "string",
+            "description": "The single documentation file path to edit (e.g. docs/architecture/agents.md). Must be one of the documentation paths where the change should be made.",
+        },
         "coverage_gap_description": {"type": "string"},
         "recommended_changes": {"type": "string"},
         "confidence_score": {
@@ -117,6 +126,7 @@ DOC_PLACEMENT_RESPONSE_SCHEMA = {
     "required": [
         "research_summary",
         "files_referenced",
+        "file_to_edit",
         "coverage_gap_description",
         "recommended_changes",
         "confidence_score",
@@ -317,6 +327,7 @@ def _run_doc_placement(
         "action": "research",
         "summary": out.get("research_summary") or "",
         "files_referenced": files_referenced,
+        "file_to_edit": out.get("file_to_edit") or "",
         "coverage_gap_description": out.get("coverage_gap_description") or "",
         "recommended_changes": out.get("recommended_changes") or "",
         "confidence_score": confidence,
@@ -365,6 +376,7 @@ def _run_researcher_fallback(
             "action": "research",
             "summary": out.get("research_summary") or "Research completed.",
             "files_referenced": out.get("files_referenced") or [],
+            "file_to_edit": out.get("file_to_edit") or "",
             "coverage_gap_description": out.get("coverage_gap_description") or "",
             "recommended_changes": out.get("recommended_changes") or "",
             "confidence_score": confidence,

@@ -112,6 +112,7 @@ def research_issue_task(self, issue_id: str):
             return
         summary = result.get("summary", "")
         files_referenced = result.get("files_referenced") or []
+        file_to_edit = result.get("file_to_edit") or ""
         coverage_gap_description = result.get("coverage_gap_description") or ""
         recommended_changes = result.get("recommended_changes") or ""
         raw_conf = result.get("confidence_score")
@@ -123,11 +124,12 @@ def research_issue_task(self, issue_id: str):
             confidence_score = 0.75
         research.summary = summary
         research.files_analyzed = files_referenced
+        research.file_to_edit = file_to_edit
         research.coverage_gap_description = coverage_gap_description
         research.recommended_changes = recommended_changes
         research.confidence_score = confidence_score
         research.status = "completed"
-        research.save(update_fields=["summary", "files_analyzed", "coverage_gap_description", "recommended_changes", "confidence_score", "status"])
+        research.save(update_fields=["summary", "files_analyzed", "file_to_edit", "coverage_gap_description", "recommended_changes", "confidence_score", "status"])
         issue.status = "research_complete"
         issue.save(update_fields=["status"])
         generate_fixes_task.delay(issue_id)
@@ -188,6 +190,7 @@ def research_issue_task(self, issue_id: str):
 
     summary = result.get("summary", "")
     files_referenced = result.get("files_referenced") or []
+    file_to_edit = result.get("file_to_edit") or ""
     coverage_gap_description = result.get("coverage_gap_description") or ""
     recommended_changes = result.get("recommended_changes") or ""
     raw_conf = result.get("confidence_score")
@@ -201,6 +204,7 @@ def research_issue_task(self, issue_id: str):
         Research.objects.filter(issue=issue).update(
             summary=summary,
             files_analyzed=files_referenced,
+            file_to_edit=file_to_edit,
             coverage_gap_description=coverage_gap_description,
             recommended_changes=recommended_changes,
             confidence_score=confidence_score,
@@ -212,6 +216,7 @@ def research_issue_task(self, issue_id: str):
                 issue=issue,
                 summary=summary,
                 files_analyzed=files_referenced,
+                file_to_edit=file_to_edit,
                 coverage_gap_description=coverage_gap_description,
                 recommended_changes=recommended_changes,
                 confidence_score=confidence_score,
@@ -220,11 +225,12 @@ def research_issue_task(self, issue_id: str):
         else:
             research.summary = summary
             research.files_analyzed = files_referenced
+            research.file_to_edit = file_to_edit
             research.coverage_gap_description = coverage_gap_description
             research.recommended_changes = recommended_changes
             research.confidence_score = confidence_score
             research.status = "completed"
-            research.save(update_fields=["summary", "files_analyzed", "coverage_gap_description", "recommended_changes", "confidence_score", "status"])
+            research.save(update_fields=["summary", "files_analyzed", "file_to_edit", "coverage_gap_description", "recommended_changes", "confidence_score", "status"])
         issue.status = "research_complete"
         issue.save(update_fields=["status"])
     generate_fixes_task.delay(issue_id)
@@ -277,15 +283,21 @@ def generate_fixes_task(issue_id: str):
         if not tree_text and inst and inst.understanding:
             tree_text = inst.understanding
         doc_paths = _tree_lines_to_doc_paths(tree_text)
-        # Prefer the first research-referenced file we can fetch (so writer edits the file research identified)
-        for path in (research.files_analyzed or []):
-            if not path or not (isinstance(path, str) and (path.endswith(".md") or "docs" in path.lower())):
-                continue
-            content, err = github_services.get_file_content(installation_id, repo, path)
+        # Use structured file_to_edit from research when set; else fall back to first doc in files_analyzed, then doc_paths
+        if getattr(research, "file_to_edit", None) and isinstance(research.file_to_edit, str) and research.file_to_edit.strip():
+            content, err = github_services.get_file_content(installation_id, repo, research.file_to_edit.strip())
             if content is not None and err is None:
-                file_path = path
+                file_path = research.file_to_edit.strip()
                 file_content = content
-                break
+        if file_path is None:
+            for path in (research.files_analyzed or []):
+                if not path or not (isinstance(path, str) and (path.endswith(".md") or "docs" in path.lower())):
+                    continue
+                content, err = github_services.get_file_content(installation_id, repo, path)
+                if content is not None and err is None:
+                    file_path = path
+                    file_content = content
+                    break
         if file_path is None:
             for path in doc_paths:
                 if path.endswith(".md"):
@@ -313,11 +325,23 @@ def generate_fixes_task(issue_id: str):
     with transaction.atomic():
         for payload in fix_payloads:
             files = list(payload.get("files", []))
+            # Build map of path -> original_content so every file gets a proper diff
+            original_map = {}
             if file_path and file_content is not None:
+                original_map[file_path] = file_content
+            if installation_id and repo:
                 for f in files:
-                    if (f.get("path") or f.get("file_path")) == file_path:
-                        f["original_content"] = file_content
-                        break
+                    p = f.get("path") or f.get("file_path") or ""
+                    if p and p not in original_map:
+                        content, err = github_services.get_file_content(
+                            installation_id, repo, p
+                        )
+                        if content is not None and err is None:
+                            original_map[p] = content
+            for f in files:
+                p = f.get("path") or f.get("file_path") or ""
+                if p and original_map.get(p) is not None:
+                    f["original_content"] = original_map[p]
             Fix.objects.create(
                 issue=issue,
                 summary=payload.get("summary", ""),

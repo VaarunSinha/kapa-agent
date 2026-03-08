@@ -48,6 +48,7 @@ class Research(models.Model):
     )
     summary = models.TextField(blank=True)
     files_analyzed = models.JSONField(default=list, blank=True)
+    file_to_edit = models.CharField(max_length=1024, blank=True)
     coverage_gap_description = models.TextField(blank=True, null=True)
     recommended_changes = models.TextField(blank=True, null=True)
     confidence_score = models.FloatField(null=True, blank=True)

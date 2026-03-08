@@ -234,9 +234,13 @@ class FixChatAPIView(APIView):
         files = fix.files if fix.files else []
         if not files and fix.file_path:
             files = [{"path": fix.file_path, "content": fix.patch or ""}]
-        # Normalize to path/content so fix_assistant always receives expected shape
+        # Normalize keys but preserve original_content so fix assistant can use it
         files = [
-            {"path": (f.get("path") or f.get("file_path") or ""), "content": (f.get("content") or f.get("diff") or f.get("patch") or "")}
+            {
+                "path": (f.get("path") or f.get("file_path") or ""),
+                "content": (f.get("content") or f.get("diff") or f.get("patch") or ""),
+                "original_content": f.get("original_content"),
+            }
             for f in files
         ]
         style_md = ""
@@ -262,7 +266,20 @@ class FixChatAPIView(APIView):
             )
         updated_files = updated["files"]
         assistant_reply = (updated.get("assistant_message") or "").strip()
-        fix.files = updated_files
+        # Preserve original_content when saving: merge LLM result with existing fix.files
+        original_by_path = {
+            (f.get("path") or f.get("file_path") or ""): f.get("original_content")
+            for f in files
+        }
+        merged = []
+        for f in updated_files:
+            path = f.get("path") or ""
+            merged.append({
+                "path": path,
+                "content": f.get("content") or "",
+                "original_content": original_by_path.get(path),
+            })
+        fix.files = merged
         fix.save(update_fields=["files"])
         if fix.status == "published" and fix.branch_name:
             installation_id, repo = _get_repo_for_issue(fix.issue)
@@ -270,7 +287,7 @@ class FixChatAPIView(APIView):
                 try:
                     from github import services as github_services
                     github_services.commit_multiple_files(
-                        installation_id, repo, fix.branch_name, {"files": updated_files}
+                        installation_id, repo, fix.branch_name, {"files": fix.files}
                     )
                     logger.info(
                         "Fix chat: pushed extra commit to branch %s for fix %s",
@@ -283,18 +300,17 @@ class FixChatAPIView(APIView):
                         id,
                         e,
                     )
-        old_content_by_path = {f.get("path") or f.get("file_path") or "": f.get("content") or "" for f in files}
         out = [
             {
                 "file_path": f.get("path", ""),
                 "diff": unified_diff_string(
-                    old_content_by_path.get(f.get("path", ""), ""),
+                    f.get("original_content") if f.get("original_content") is not None else "",
                     f.get("content", ""),
                     f.get("path", ""),
                 ),
                 "markdown": f.get("content"),
             }
-            for f in updated_files
+            for f in fix.files
         ]
         return Response({
             "files": out,
