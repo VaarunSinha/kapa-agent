@@ -73,7 +73,7 @@ Creates an Issue from the coverage gap (Issue Creator agent) and enqueues the re
 
 **`POST /api/fixes/<id>/approve/`** — Mark the fix as approved and enqueue the publish task. Response: `{"status": "ok", "fix_id": "uuid"}`.
 
-Fixes can be edited through the UI via the Fix Assistant; after review, approval triggers publishing to a branch and opening a PR.
+Fixes can be edited in the UI.
 
 ---
 

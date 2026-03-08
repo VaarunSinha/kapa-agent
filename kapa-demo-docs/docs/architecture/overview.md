@@ -5,7 +5,7 @@ title: Architecture Overview
 
 # Architecture Overview
 
-The Kapa Content Gap Action Agent is built as a Next.js frontend, a Django backend with Celery, a GitHub App integration, vector retrieval (LlamaIndex), and several AI agents. GitHub is used for issues and for output (comments, pull requests).
+The Kapa Content Gap Action Agent is built as a Next.js frontend, a Django backend with Celery, a GitHub App integration, and several AI agents. GitHub is used for issues and for output (comments, pull requests).
 
 ## High-level flow
 
@@ -13,11 +13,9 @@ The Kapa Content Gap Action Agent is built as a Next.js frontend, a Django backe
 2. **Issue** — User acts on a gap; backend creates an Issue (Issue Creator agent) and enqueues work.
 3. **Research** — Celery runs the Research Agent with repository and documentation context. It may ask questions or produce a research report.
 4. **Questions** — If the agent asks questions, the frontend collects answers; backend re-runs research with answers.
-5. **Fix** — Writer Agent produces documentation changes from the research report. Fixes may affect multiple files. A Fix record holds the proposed changes.
+5. **Fix** — Writer Agent produces documentation changes from the research report. Fixes may affect multiple files.
 6. **Review** — User reviews the fix in the UI; edits can be made via the Fix Assistant. Approval triggers publish.
 7. **Pull request** — Backend creates a branch, commits the fix, and opens a PR; optionally comments on the issue.
-
-Documentation fixes may affect multiple files; the system supports proposing and reviewing such changes in one fix.
 
 ## Components
 
@@ -38,10 +36,6 @@ A **Django** service (`kapa_demo_backend`) that:
 - Runs Celery tasks: create_issue_task, research_issue_task, publish_fixes_task
 - Uses the GitHub App for repo access, branches, commits, and PRs
 - Stores CoverageGap, Issue, Research, Question, Fix and related state
-
-### Vector retrieval
-
-The backend uses **LlamaIndex** with a vector store to provide relevant documentation and code context to the Research and Writer agents. Indexing is tied to the connected GitHub installation.
 
 ### Agents
 

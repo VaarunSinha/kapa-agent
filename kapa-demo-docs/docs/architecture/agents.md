@@ -43,22 +43,18 @@ The Writer Agent turns the research report into documentation. It is given:
 
 - The research report
 - Existing documentation content when updating specific files
-- A **style guide** so that generated docs match the project’s writing style
+- A **style guide** so that generated docs match the project's writing style
 
 It produces:
 
 - **New or updated doc files** — Markdown (or other formats) ready to be committed
 - **Open questions for engineers** — Optional list for the PR description or a comment
 
-The Writer does not call the repository or GitHub directly; it only works with the content provided in the research report and any existing doc content and style guidance the backend supplies. The backend is responsible for writing the agent’s output to the correct paths and creating the pull request.
-
-### Style alignment
-
-The system aligns documentation with the project’s writing style. A style guide is used by the Writer Agent (and by the Fix Assistant when applying edits). This keeps tone, structure, and formatting consistent across generated and edited docs.
+The Writer does not call the repository or GitHub directly; it only works with the content provided in the research report and any existing doc content and style guidance the backend supplies. The backend is responsible for writing the agent's output to the correct paths and creating the pull request.
 
 ## Fix Assistant
 
-The Fix Assistant supports editing a proposed fix from the UI. When the user requests changes (e.g., “add a code example here” or “shorten this section”), the assistant applies those edits to the fix content. The backend then updates the Fix record; if the fix is already published, it can push an additional commit to the same branch. The Fix Assistant uses the same style guide as the Writer so that edits remain consistent with the rest of the docs.
+The Fix Assistant supports editing a proposed fix from the UI.
 
 ## Pipeline summary
 
