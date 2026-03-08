@@ -156,6 +156,12 @@ GITHUB_PRIVATE_KEY = os.environ.get("GITHUB_PRIVATE_KEY", "")  # PEM string or p
 GITHUB_API_VERSION = "2022-11-28"
 FRONTEND_URL = "http://localhost:3000"  # For redirect after setup
 
+# Chroma vector store persistence (per-installation collections)
+CHROMA_PERSIST_DIR = os.environ.get("CHROMA_PERSIST_DIR", str(BASE_DIR / "chroma_data"))
+
+# OpenAI (for agents and embeddings)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+
 # Celery + Redis (use DB 1 so kapa-agent worker doesn't see other projects' tasks on DB 0)
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/1")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")

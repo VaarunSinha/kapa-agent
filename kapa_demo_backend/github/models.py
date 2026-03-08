@@ -4,12 +4,30 @@ from django.db import models
 class GitHubInstallation(models.Model):
     """Stores GitHub App installation and linked repo; understanding = generated repo understanding markdown."""
 
+    SOURCE_STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("indexing", "Indexing"),
+        ("ready", "Ready"),
+        ("failed", "Failed"),
+    ]
+
     installation_id = models.BigIntegerField(unique=True)
     repository_name = models.CharField(max_length=255)
     owner = models.CharField(max_length=255)
     installed_at = models.DateTimeField(auto_now_add=True)
     understanding = models.TextField(blank=True, null=True)
     raw_tree = models.TextField(blank=True, null=True)
+    source_status = models.CharField(
+        max_length=20,
+        choices=SOURCE_STATUS_CHOICES,
+        default="pending",
+    )
+    style_md = models.TextField(blank=True, null=True)
+    chroma_collection_name = models.CharField(max_length=255, blank=True, null=True)
+    # List of {path, purpose, bucket} from understanding agent; records which dirs are docs/backend/frontend
+    understanding_directories = models.JSONField(default=list, blank=True)
+    # List of {path, bucket} for each file actually indexed (populated after index run)
+    indexed_paths = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["-installed_at"]

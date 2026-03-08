@@ -91,6 +91,7 @@ class GitHubWebhookView(View):
                     defaults={
                         "repository_name": repository_name,
                         "owner": owner,
+                        "source_status": "pending",
                     },
                 )
                 if not (inst.understanding or "").strip():
@@ -111,7 +112,7 @@ def _setup_redirect(error, installation_id=None):
 def github_setup_view(request):
     """
     GET /github/setup - after GitHub redirect. installation_id in query.
-    Clone repo, generate tree, run mock understanding agent, save, redirect to frontend.
+    Clone repo, generate tree, run understanding agent (or use placeholder), save, redirect to frontend.
     """
     installation_id_raw = request.GET.get("installation_id")
     if not installation_id_raw:
@@ -122,35 +123,37 @@ def github_setup_view(request):
     except ValueError:
         return _setup_redirect("invalid_installation_id", installation_id_raw)
 
-    try:
-        inst = GitHubInstallation.objects.get(installation_id=installation_id)
-    except GitHubInstallation.DoesNotExist:
-        # Redirect from GitHub often hits us before the installation.created webhook is
-        # delivered, so the record may not exist yet. Create it from the GitHub API.
+    # Use get_or_create so we don't hit UNIQUE if the webhook already created the record
+    # (e.g. user lands on /github/setup before or right after installation.created webhook).
+    inst = GitHubInstallation.objects.filter(installation_id=installation_id).first()
+    if not inst:
         owner, repo_name = get_installation_repo(installation_id)
         if not owner or not repo_name:
             return _setup_redirect("installation_not_found", installation_id)
-        inst = GitHubInstallation.objects.create(
-            installation_id=installation_id,
-            owner=owner,
-            repository_name=repo_name,
-            understanding=default_understanding(owner, repo_name),
-        )
+        try:
+            inst, _ = GitHubInstallation.objects.get_or_create(
+                installation_id=installation_id,
+                defaults={
+                    "owner": owner,
+                    "repository_name": repo_name,
+                    "understanding": default_understanding(owner, repo_name),
+                    "source_status": "pending",
+                },
+            )
+        except Exception:
+            # Race: webhook created it between get and get_or_create; fetch and proceed
+            inst = GitHubInstallation.objects.get(installation_id=installation_id)
 
     owner = inst.owner
     repo_name = inst.repository_name
     if not owner or not repo_name:
         return _setup_redirect("no_repository", installation_id)
 
-    try:
-        tree_text = _get_tree_from_clone(owner, repo_name, installation_id)
-    except Exception:
-        return _setup_redirect("clone_failed", installation_id)
+    inst.source_status = "indexing"
+    inst.save(update_fields=["source_status"])
 
-    from agent.agents.understanding import generate_understanding
-    inst.understanding = generate_understanding(tree_text)
-    inst.raw_tree = tree_text
-    inst.save(update_fields=["understanding", "raw_tree"])
+    from github.tasks import index_installation_task
+    index_installation_task.delay(installation_id)
 
     frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
     return HttpResponseRedirect(f"{frontend_url}/github/setup?installation_id={installation_id}&done=1")
@@ -186,6 +189,8 @@ class GitHubInstallationAPIView(APIView):
             "repository_name": inst.repository_name,
             "installed_at": inst.installed_at.isoformat() if inst.installed_at else None,
             "understanding": understanding,
+            "source_status": getattr(inst, "source_status", None) or "pending",
+            "understanding_directories": getattr(inst, "understanding_directories", None) or [],
         })
 
     def patch(self, request):

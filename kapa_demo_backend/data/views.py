@@ -24,6 +24,7 @@ class CoverageGapListAPIView(APIView):
 
         has_connected_repo = False
         connected_repo = None
+        source_status = "pending"
         if GitHubInstallation is not None:
             has_connected_repo = GitHubInstallation.objects.exists()
             if has_connected_repo:
@@ -34,6 +35,7 @@ class CoverageGapListAPIView(APIView):
                         "repository_name": inst.repository_name or "",
                         "installation_id": inst.installation_id,
                     }
+                    source_status = getattr(inst, "source_status", None) or "pending"
 
         return Response(
             {
@@ -46,6 +48,7 @@ class CoverageGapListAPIView(APIView):
                 ),
                 "hasConnectedRepo": has_connected_repo,
                 "connectedRepo": connected_repo,
+                "sourceStatus": source_status,
                 "gaps": serializer.data,
             }
         )
