@@ -6,6 +6,17 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView
 
 logger = logging.getLogger(__name__)
 
+# Fix Chat UI copy (exposed via API; do not hardcode in frontend)
+FIX_CHAT_ASSISTANT_INTRO = (
+    "Hi! I've reviewed the proposed documentation fix. Feel free to ask me to revise specific "
+    "sections, change the tone, add examples, or restructure any part of it. The style guide is "
+    "generated from excerpts of the related documentation (selected by the researcher), and the "
+    "writer uses similar language and style."
+)
+FIX_CHAT_ASSISTANT_REPLY_SUCCESS = (
+    "I've applied your changes. The Proposed Changes panel on the left has been updated."
+)
+
 from data.models import CoverageGap
 from .models import Issue, Research, Question, Fix
 from .tasks import create_issue_task, research_issue_task, publish_fixes_task, _get_repo_for_issue
@@ -18,10 +29,11 @@ from .serializers import (
     FixListSerializer,
     FixDetailSerializer,
 )
+from .utils import unified_diff_string
 
 
 class CoverageGapActAPIView(APIView):
-    """POST /api/coverage-gaps/<id>/act — create an Issue from the CoverageGap."""
+    """POST /api/coverage-gaps/<id>/act — create an Issue from the CoverageGap (Issue Creator agent)."""
 
     def post(self, request, id):
         try:
@@ -32,10 +44,25 @@ class CoverageGapActAPIView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        from github.models import GitHubInstallation
+        from agent.agents.issue_creator import create_issue_from_gap
+        from agent.agents.understanding import default_understanding
+
+        inst = GitHubInstallation.objects.order_by("-installed_at").first()
+        understanding = (inst.understanding if inst else None) or default_understanding(
+            inst.owner if inst else "", inst.repository_name if inst else ""
+        )
+        payload = create_issue_from_gap(
+            gap_title=gap.title,
+            gap_finding=gap.finding or "",
+            gap_suggestion=gap.suggestion or "",
+            understanding=understanding,
+        )
         issue = Issue.objects.create(
             coverage_gap=gap,
-            title=gap.title,
-            description=gap.finding or "",
+            title=payload["title"],
+            description=payload["description"],
+            research_goal=payload.get("research_goal") or "",
             status="created",
         )
         gap.status = "acted"
@@ -154,11 +181,17 @@ class FixDetailAPIView(APIView):
         fix = Fix.objects.filter(pk=id).select_related("issue").first()
         if fix:
             serializer = FixDetailSerializer(fix)
-            return Response(serializer.data)
+            data = dict(serializer.data)
+            data["assistant_intro"] = FIX_CHAT_ASSISTANT_INTRO
+            data["assistant_reply_success"] = FIX_CHAT_ASSISTANT_REPLY_SUCCESS
+            return Response(data)
         fix = Fix.objects.filter(issue_id=id).select_related("issue").first()
         if fix:
             serializer = FixDetailSerializer(fix)
-            return Response(serializer.data)
+            data = dict(serializer.data)
+            data["assistant_intro"] = FIX_CHAT_ASSISTANT_INTRO
+            data["assistant_reply_success"] = FIX_CHAT_ASSISTANT_REPLY_SUCCESS
+            return Response(data)
         return Response(
             {"detail": "Fix not found."},
             status=status.HTTP_404_NOT_FOUND,
@@ -188,21 +221,8 @@ class FixApproveAPIView(APIView):
         return Response({"status": "ok", "fix_id": str(fix.id)})
 
 
-def _mock_chat_edit_files(files: list, message: str) -> list:
-    """Mock: apply user message to fix files (e.g. append a line). Returns updated list of {path, content}."""
-    if not files:
-        return [{"path": "docs/update.md", "content": f"# Update\n\nBased on your request: {message[:200]}\n"}]
-    updated = []
-    for f in files:
-        path = f.get("path", "")
-        content = f.get("content", "")
-        extra = f"\n\n<!-- Applied: {message[:80]} -->"
-        updated.append({"path": path, "content": content + extra})
-    return updated
-
-
 class FixChatAPIView(APIView):
-    """POST /api/fixes/<id>/chat — mock edit fix from user message; update Fix.files, return updated files.
+    """POST /api/fixes/<id>/chat — edit fix from user message (Fix Assistant + style.md); update Fix.files, return updated files.
     If fix is already published (PR exists), push a new commit to the same branch."""
 
     def post(self, request, id):
@@ -214,7 +234,34 @@ class FixChatAPIView(APIView):
         files = fix.files if fix.files else []
         if not files and fix.file_path:
             files = [{"path": fix.file_path, "content": fix.patch or ""}]
-        updated_files = _mock_chat_edit_files(files, message or "No message")
+        # Normalize to path/content so fix_assistant always receives expected shape
+        files = [
+            {"path": (f.get("path") or f.get("file_path") or ""), "content": (f.get("content") or f.get("diff") or f.get("patch") or "")}
+            for f in files
+        ]
+        style_md = ""
+        inst = None
+        try:
+            from github.models import GitHubInstallation
+            inst = GitHubInstallation.objects.order_by("-installed_at").first()
+            if inst and getattr(inst, "style_md", None):
+                style_md = inst.style_md or ""
+        except Exception:
+            pass
+        from agent.agents.fix_assistant import apply_fix_instruction
+        updated = apply_fix_instruction(files, message or "No message", style_md)
+        if updated is None:
+            logger.warning(
+                "FixChatAPIView: apply_fix_instruction returned None for fix_id=%s message_len=%s",
+                id,
+                len(message or ""),
+            )
+            return Response(
+                {"error": "LLM unavailable; could not apply instruction."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        updated_files = updated["files"]
+        assistant_reply = (updated.get("assistant_message") or "").strip()
         fix.files = updated_files
         fix.save(update_fields=["files"])
         if fix.status == "published" and fix.branch_name:
@@ -236,8 +283,20 @@ class FixChatAPIView(APIView):
                         id,
                         e,
                     )
+        old_content_by_path = {f.get("path") or f.get("file_path") or "": f.get("content") or "" for f in files}
         out = [
-            {"file_path": f.get("path", ""), "diff": f.get("content", ""), "markdown": f.get("content")}
+            {
+                "file_path": f.get("path", ""),
+                "diff": unified_diff_string(
+                    old_content_by_path.get(f.get("path", ""), ""),
+                    f.get("content", ""),
+                    f.get("path", ""),
+                ),
+                "markdown": f.get("content"),
+            }
             for f in updated_files
         ]
-        return Response({"files": out})
+        return Response({
+            "files": out,
+            "assistant_reply": assistant_reply,
+        })

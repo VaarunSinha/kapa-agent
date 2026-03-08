@@ -1,50 +1,84 @@
 """
-Mock writer agent: given research summary, returns list of fix payloads (multi-file).
-Deterministic; no LLM calls. If real file_path and file_content are provided, edits one line for a visible diff.
+Writer agent: research + retrieval context + style.md → structured output files[] (edit existing docs).
+Uses LLM only; returns [] when LLM unavailable or returns no files.
 """
+import logging
+from typing import Any, List, Optional
 
+logger = logging.getLogger(__name__)
 
-def _edit_one_line(content: str, issue_title: str) -> str:
-    """Apply a single deterministic edit so the diff view shows one clear change."""
-    title = (issue_title or "Documentation update")[:80]
-    line = f"\n\n<!-- Documentation updated for: {title} -->\n"
-    return (content.rstrip() if content else "") + line
+WRITER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "files": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+                "additionalProperties": False,
+            },
+            "description": "Documentation files to create or update (path and full content)",
+        },
+    },
+    "required": ["files"],
+    "additionalProperties": False,
+}
 
 
 def run_writer(
     research_summary: str,
     issue_title: str = "",
-    file_path: str = None,
-    file_content: str = None,
+    file_path: Optional[str] = None,
+    file_content: Optional[str] = None,
+    retrieval_context: str = "",
+    style_md: str = "",
+    files_referenced: Optional[List[str]] = None,
+    coverage_gap_description: str = "",
+    recommended_changes: str = "",
 ) -> list:
     """
     Returns list of fixes, each: {"summary": str, "files": [{"path": str, "content": str}, ...]}
-    If file_path and file_content are provided, returns one fix with that file edited by one line (visible diff).
+    Uses LLM only; returns [] when LLM unavailable or returns no files.
     """
     title = issue_title or "Documentation update"
+
+    from agent.agents.openai_structured import structured_completion
+    from agent.prompts import WRITER_SYSTEM, WRITER_USER_TEMPLATE
+
+    files_referenced_str = ", ".join(files_referenced or [])
+    style_md_snippet = (style_md or "")[:3000]
+    retrieval_snippet = (retrieval_context or "")[:5000]
+    user_prompt = WRITER_USER_TEMPLATE.format(
+        research_summary=research_summary or "N/A",
+        coverage_gap_description=coverage_gap_description or "N/A",
+        recommended_changes=recommended_changes or "N/A",
+        title=title,
+        files_referenced_str=files_referenced_str,
+        style_md=style_md_snippet,
+        retrieval_context=retrieval_snippet,
+    )
     if file_path and file_content is not None:
-        edited = _edit_one_line(file_content, title)
+        user_prompt += f"\n\nCurrent file to edit (path: {file_path}):\n<content>\n{file_content[:8000]}\n</content>\n\nUse this content as the base and apply the doc updates for the issue above."
+
+    out = structured_completion(
+        system_prompt=WRITER_SYSTEM,
+        user_prompt=user_prompt,
+        json_schema=WRITER_SCHEMA,
+        model="gpt-4o-mini",
+    )
+    if out and out.get("files"):
         return [
             {
                 "summary": f"Docs update for: {title}",
-                "files": [{"path": file_path, "content": edited}],
+                "files": [{"path": f.get("path", ""), "content": f.get("content", "")} for f in out["files"]],
             }
         ]
-    return [
-        {
-            "summary": f"Docs update for: {title}",
-            "files": [
-                {
-                    "path": "docs/getting-started.md",
-                    "content": "# Getting Started\n\n## Installation\n\n1. Install the CLI:\n   ```bash\n   npm install -g @kapa/cli\n   ```\n2. Log in:\n   ```bash\n   kapa login\n   ```\n"
-                    + _edit_one_line("", title).strip(),
-                },
-                {
-                    "path": "docs/README.md",
-                    "content": "# Documentation\n\nThis documentation covers setup and usage.\n\n"
-                    + (research_summary[:200] if research_summary else "")
-                    + _edit_one_line("", title).strip(),
-                },
-            ],
-        }
-    ]
+    logger.warning(
+        "run_writer: no files produced (LLM unavailable or empty response) issue_title=%s",
+        title[:80],
+    )
+    return []

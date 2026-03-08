@@ -8,6 +8,7 @@ class Issue(models.Model):
         ("researching", "Researching"),
         ("questions_pending", "Questions Pending"),
         ("research_complete", "Research Complete"),
+        ("research_failed", "Research Failed"),
         ("fix_proposed", "Fix Proposed"),
         ("completed", "Completed"),
     ]
@@ -20,6 +21,7 @@ class Issue(models.Model):
     )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    research_goal = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="created")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -46,6 +48,8 @@ class Research(models.Model):
     )
     summary = models.TextField(blank=True)
     files_analyzed = models.JSONField(default=list, blank=True)
+    coverage_gap_description = models.TextField(blank=True, null=True)
+    recommended_changes = models.TextField(blank=True, null=True)
     confidence_score = models.FloatField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)

@@ -116,3 +116,4 @@ yarn-error.log*
 pnpm-debug.log*
 /site
 dump.rdb
+kapa_demo_backend/chroma_data/*
