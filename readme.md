@@ -1,5 +1,11 @@
 # Kapa Content Gap Action Agent
 
+
+
+
+https://github.com/user-attachments/assets/7262e1d0-56b7-450b-aed6-f66609c79e13
+
+
 An AI-powered documentation assistant that turns **documentation coverage gaps** into actionable updates. The system analyzes your codebase and docs, proposes changes via research and writer agents, and opens pull requests so engineers can review and merge documentation improvements directly in GitHub.
 
 ## What it does
