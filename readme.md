@@ -1,4 +1,4 @@
-# Kapa Content Gap Action Agent
+# Kapa Coverage Gap Action Agent
 
 
 
