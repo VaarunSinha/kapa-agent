@@ -1,5 +1,7 @@
 # Kapa Coverage Gap Action Agent
 
+The issue which our bot opened in the demo video: https://github.com/VaarunSinha/kapa-coverage-gap-action-agent/issues/27 
+The pull request which our agent made: https://github.com/VaarunSinha/kapa-coverage-gap-action-agent/pull/28
 
 
 
